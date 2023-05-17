@@ -116,4 +116,75 @@ impl Image {
             self.clear(Pixel::new(self.width - 1, y).connected_grow(self))
         }
     }
+
+    pub fn is_column_empty(&self, x: usize) -> bool {
+        for y in 0..self.height {
+            if self.pixel_at(x, y) {
+                return false;
+            }
+        }
+        true
+    }
+
+    pub fn x_min(&self, skip: bool) -> usize {
+        let mut x_min = 0;
+        if skip {
+            for x in 0..self.width / 2 {
+                if self.is_column_empty(x) {
+                    x_min = x;
+                }
+            }
+        } else {
+            while self.is_column_empty(x_min) {
+                x_min += 1;
+            }
+        }
+        x_min
+    }
+
+    pub fn x_max(&self) -> usize {
+        let mut x_max = self.width - 1;
+        while self.is_column_empty(x_max) {
+            x_max -= 1;
+        }
+        x_max
+    }
+
+    pub fn change_border_width(
+        &self,
+        current_left: usize,
+        new_left: usize,
+        current_right: usize,
+        new_right: usize,
+    ) -> Self {
+        let width = self.width - current_left + new_left - current_right + new_right;
+        let height = self.height;
+        let mut data = Vec::with_capacity(width * height);
+
+        for y in 0..self.height {
+            for _ in 0..new_left {
+                data.push(false);
+            }
+            for x in current_left..(self.width - current_right) {
+                data.push(self.pixel_at(x, y));
+            }
+            for _ in 0..new_right {
+                data.push(false);
+            }
+        }
+
+        Self {
+            width,
+            height,
+            data,
+        }
+    }
+
+    pub fn width(&self) -> usize {
+        self.width
+    }
+
+    pub fn height(&self) -> usize {
+        self.height
+    }
 }
