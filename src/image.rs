@@ -1,5 +1,6 @@
 use crate::decoder::{IndexedDecoder, ThreeByteDecoder};
 use crate::encoder::OneBitEncoder;
+use crate::object::{Object, Pixel};
 use std::error::Error;
 use std::fs::File;
 use std::io::BufWriter;
@@ -73,5 +74,46 @@ impl Image {
         writer.write_image_data(&data)?;
 
         Ok(())
+    }
+
+    pub fn pixel_at(&self, x: usize, y: usize) -> bool {
+        let idx = y * self.width + x;
+        if idx >= self.data.len() {
+            return false;
+        }
+        self.data[idx]
+    }
+
+    pub fn pixel_clear(&mut self, x: usize, y: usize) {
+        let idx = y * self.width + x;
+        if idx >= self.data.len() {
+            return;
+        }
+        self.data[idx] = false;
+    }
+
+    pub fn has_pixel(&self, pixel: &Pixel) -> bool {
+        self.pixel_at(pixel.x(), pixel.y())
+    }
+
+    pub fn clear_pixel(&mut self, pixel: &Pixel) {
+        self.pixel_clear(pixel.x(), pixel.y());
+    }
+
+    pub fn clear(&mut self, pixels: impl IntoIterator<Item = Pixel>) {
+        for pixel in pixels.into_iter() {
+            self.clear_pixel(&pixel);
+        }
+    }
+
+    pub fn clear_border(&mut self) {
+        for x in 0..self.width {
+            self.clear(Pixel::new(x, 0).connected_grow(self));
+            self.clear(Pixel::new(x, self.height - 1).connected_grow(self));
+        }
+        for y in 0..self.height {
+            self.clear(Pixel::new(0, y).connected_grow(self));
+            self.clear(Pixel::new(self.width - 1, y).connected_grow(self))
+        }
     }
 }
