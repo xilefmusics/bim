@@ -8,9 +8,13 @@ struct Args {
     pub input_path: String,
     /// The output path of the png
     pub output_path: String,
-    /// The threshold that defines whe a pixel gets set to 0 or 1 (its a value between 0 and 1)
+    /// The threshold that defines when a pixel gets set to 0 or 1 (its a value between 0 and 1)
     #[arg(short, long, default_value_t = 0.5)]
     pub threshold: f64,
+    /// A secondary threshold with whitch the image gets read a second time and only touching
+    /// pixels are set
+    #[arg(long, default_value_t = 0.0)]
+    pub threshold2: f64,
     /// If set each object that touches the border gets removed
     #[arg(short, long, default_value_t = false)]
     pub clear_border: bool,
@@ -28,9 +32,16 @@ struct Args {
 fn main() {
     let args = Args::parse();
 
-    let mut image = Image::from_png(args.input_path, args.threshold).unwrap();
+    let mut image = Image::from_png(&args.input_path, args.threshold).unwrap();
     if args.clear_border {
         image.clear_border();
+    }
+    if args.threshold2 > 0.0 {
+        let image2 = Image::from_png(&args.input_path, args.threshold2).unwrap();
+        image.merge_grow(&image2);
+        if args.clear_border {
+            image.clear_border();
+        }
     }
 
     let x_min = image.x_min(args.skip_left);
@@ -45,5 +56,5 @@ fn main() {
     };
     image = image.change_border_width(x_min, padding_left, image.width() - x_max, padding_right);
 
-    image.to_png(args.output_path).unwrap();
+    image.to_png(&args.output_path).unwrap();
 }

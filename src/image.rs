@@ -96,12 +96,24 @@ impl Image {
         self.data[idx] = false;
     }
 
+    pub fn pixel_set(&mut self, x: usize, y: usize) {
+        let idx = y * self.width + x;
+        if idx >= self.data.len() {
+            return;
+        }
+        self.data[idx] = true;
+    }
+
     pub fn has_pixel(&self, pixel: &Pixel) -> bool {
         self.pixel_at(pixel.x(), pixel.y())
     }
 
     pub fn clear_pixel(&mut self, pixel: &Pixel) {
         self.pixel_clear(pixel.x(), pixel.y());
+    }
+
+    pub fn set_pixel(&mut self, pixel: &Pixel) {
+        self.pixel_set(pixel.x(), pixel.y());
     }
 
     pub fn clear(&mut self, pixels: impl IntoIterator<Item = Pixel>) {
@@ -199,5 +211,39 @@ impl Image {
 
     pub fn height(&self) -> usize {
         self.height
+    }
+
+    pub fn set_pixel_if_at_least_n_neighbors(&mut self, x: usize, y: usize, n: usize) {
+        let mut counter = 0;
+        if y > 0 && self.pixel_at(x, y - 1) {
+            counter += 1
+        };
+        if self.pixel_at(x, y + 1) {
+            counter += 1
+        };
+        if x > 0 && self.pixel_at(x - 1, y) {
+            counter += 1
+        };
+        if self.pixel_at(x + 1, y) {
+            counter += 1
+        };
+        if counter >= n {
+            self.pixel_set(x, y);
+        }
+    }
+
+    pub fn merge_grow(&mut self, other: &Self) {
+        for y in 0..self.height {
+            for x in 0..self.width {
+                if other.pixel_at(x, y) && !self.pixel_at(x, y) {
+                    self.set_pixel_if_at_least_n_neighbors(x, y, 1);
+                }
+                if other.pixel_at(self.width - x, self.height - y)
+                    && !self.pixel_at(self.width - x, self.height - y)
+                {
+                    self.set_pixel_if_at_least_n_neighbors(self.width - x, self.height - y, 1);
+                }
+            }
+        }
     }
 }
