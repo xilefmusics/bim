@@ -13,8 +13,12 @@ pub trait Object: IntoIterator<Item = Pixel> + Clone {
             if !result.add_pixel(pixel.clone()) {
                 continue;
             }
-            queue.push(pixel.addx(1));
-            queue.push(pixel.addy(1));
+            if pixel.x < image.width() {
+                queue.push(pixel.addx(1));
+            }
+            if pixel.y < image.height() {
+                queue.push(pixel.addy(1));
+            }
             if pixel.x > 0 {
                 queue.push(pixel.subx(1));
             }

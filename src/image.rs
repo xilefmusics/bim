@@ -46,7 +46,11 @@ impl Image {
                 data.extend(IndexedDecoder::new(&palette, row.data()))
             }
         } else {
-            return Err("unsupported png variant".into());
+            return Err(format!(
+                "unsupported png variant (color_type={:?}, bit_depth={:?})",
+                info.color_type, info.bit_depth,
+            )
+            .into());
         }
 
         Ok(Self {
