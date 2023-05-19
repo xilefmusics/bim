@@ -145,10 +145,13 @@ impl Image {
     pub fn x_min(&self, skip: bool) -> usize {
         let mut x_min = 0;
         if skip {
-            for x in 0..self.width / 2 {
+            for x in 0..self.width / 3 {
                 if self.is_column_empty(x) {
                     x_min = x;
                 }
+            }
+            if x_min > self.width / 3 {
+                return self.x_min(false);
             }
         } else {
             while self.is_column_empty(x_min) {
@@ -161,11 +164,14 @@ impl Image {
     pub fn x_max(&self, skip: bool) -> usize {
         let mut x_max = self.width - 1;
         if skip {
-            for x in 0..self.width / 2 {
+            for x in 0..self.width * 2 / 3 {
                 let x = self.width - x;
                 if self.is_column_empty(x) {
                     x_max = x;
                 }
+            }
+            if x_max < self.width * 2 / 3 {
+                return self.x_max(false);
             }
         } else {
             while self.is_column_empty(x_max) {
