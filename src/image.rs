@@ -232,6 +232,25 @@ impl Image {
         }
     }
 
+    pub fn clear_pixel_if_at_most_n_neighbors(&mut self, x: usize, y: usize, n: usize) {
+        let mut counter = 0;
+        if y > 0 && self.pixel_at(x, y - 1) {
+            counter += 1
+        };
+        if self.pixel_at(x, y + 1) {
+            counter += 1
+        };
+        if x > 0 && self.pixel_at(x - 1, y) {
+            counter += 1
+        };
+        if self.pixel_at(x + 1, y) {
+            counter += 1
+        };
+        if counter <= n {
+            self.pixel_clear(x, y);
+        }
+    }
+
     pub fn merge_grow(&mut self, other: &Self) {
         for y in 0..self.height {
             for x in 0..self.width {
@@ -243,6 +262,17 @@ impl Image {
                 {
                     self.set_pixel_if_at_least_n_neighbors(self.width - x, self.height - y, 1);
                 }
+            }
+        }
+    }
+
+    pub fn remove_salt_and_pepper(&mut self) {
+        for y in 0..self.height {
+            for x in 0..self.width {
+                self.set_pixel_if_at_least_n_neighbors(x, y, 3);
+                self.clear_pixel_if_at_most_n_neighbors(x, y, 1);
+                self.set_pixel_if_at_least_n_neighbors(self.width - x, self.height - y, 3);
+                self.clear_pixel_if_at_most_n_neighbors(self.width - x, self.height - y, 1);
             }
         }
     }

@@ -27,6 +27,9 @@ struct Args {
     /// The width the image gets padded to
     #[arg(short, long, default_value_t = 0)]
     pub width: usize,
+    /// Clear pixels if at most 1 neighbor, set pixel with at least 3 neighbors
+    #[arg(short, long, default_value_t = false)]
+    pub remove_salt_and_pepper: bool,
 }
 
 fn main() {
@@ -42,6 +45,10 @@ fn main() {
         if args.clear_border {
             image.clear_border();
         }
+    }
+
+    if args.remove_salt_and_pepper {
+        image.remove_salt_and_pepper();
     }
 
     let x_min = image.x_min(args.skip_left);
