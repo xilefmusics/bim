@@ -282,4 +282,48 @@ impl Image {
             }
         }
     }
+
+    pub fn vertical_down_div(&self) -> Self {
+        let width = self.width;
+        let height = self.height;
+        let mut data = Vec::with_capacity(width * height);
+
+        for _ in 0..self.width {
+            data.push(false);
+        }
+
+        for y in 1..self.height {
+            for x in 0..self.width {
+                data.push(!self.pixel_at(x, y - 1) && self.pixel_at(x, y));
+            }
+        }
+
+        Self {
+            width,
+            height,
+            data,
+        }
+    }
+
+    pub fn vertical_up_div(&self) -> Self {
+        let width = self.width;
+        let height = self.height;
+        let mut data = Vec::with_capacity(width * height);
+
+        for y in 0..self.height - 1 {
+            for x in 0..self.width {
+                data.push(self.pixel_at(x, y) && !self.pixel_at(x, y + 1));
+            }
+        }
+
+        for _ in 0..self.width {
+            data.push(false);
+        }
+
+        Self {
+            width,
+            height,
+            data,
+        }
+    }
 }

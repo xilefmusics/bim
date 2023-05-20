@@ -64,4 +64,14 @@ fn main() {
     image = image.change_border_width(x_min, padding_left, image.width() - x_max, padding_right);
 
     image.to_png(&args.output_path).unwrap();
+
+    image
+        .vertical_down_div()
+        .to_png(format!("{}.vd_diff.png", &args.output_path))
+        .unwrap();
+
+    image
+        .vertical_up_div()
+        .to_png(format!("{}.vu_diff.png", &args.output_path))
+        .unwrap();
 }
