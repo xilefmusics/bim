@@ -1,6 +1,6 @@
 use crate::decoder::{IndexedDecoder, ThreeByteDecoder};
 use crate::encoder::OneBitEncoder;
-use crate::object::{Object, Pixel};
+use crate::object::{Object, Pixel, Rectangle};
 use std::error::Error;
 use std::fs::File;
 use std::io::BufWriter;
@@ -22,7 +22,13 @@ impl Image {
         }
     }
 
-    pub fn from_png(path: impl AsRef<Path>, threshold: f64) -> Result<Self, Box<dyn Error>> {
+    pub fn from_png(
+        path: impl AsRef<Path>,
+        red: f64,
+        green: f64,
+        blue: f64,
+        threshold: f64,
+    ) -> Result<Self, Box<dyn Error>> {
         let file = File::open(path)?;
         let decoder = png::Decoder::new(file);
         let mut reader = decoder.read_info()?;
@@ -38,6 +44,9 @@ impl Image {
                     .palette
                     .clone()
                     .ok_or("try to access pallette, but it's not there".to_string())?,
+                red,
+                green,
+                blue,
                 threshold,
             )
             .collect::<Vec<bool>>();
@@ -135,6 +144,15 @@ impl Image {
 
     pub fn is_column_empty(&self, x: usize) -> bool {
         for y in 0..self.height {
+            if self.pixel_at(x, y) {
+                return false;
+            }
+        }
+        true
+    }
+
+    pub fn is_line_empty(&self, y: usize) -> bool {
+        for x in 0..self.width {
             if self.pixel_at(x, y) {
                 return false;
             }
@@ -325,5 +343,86 @@ impl Image {
             height,
             data,
         }
+    }
+
+    pub fn x_min_row(&self, y: usize) -> usize {
+        for x in 0..self.width {
+            if self.pixel_at(x, y) {
+                return x;
+            }
+        }
+        self.width - 1
+    }
+
+    pub fn x_max_row(&self, y: usize) -> usize {
+        for x in 0..self.width {
+            let x = self.width - x;
+            if self.pixel_at(x, y) {
+                return x;
+            }
+        }
+        0
+    }
+
+    pub fn draw<T: Object>(&mut self, object: T) {
+        for pixel in object.into_iter() {
+            self.set_pixel(&pixel);
+        }
+    }
+
+    pub fn get_rectangles(&self) -> Vec<Rectangle> {
+        let lines = {
+            let mut lines: Vec<usize> = Vec::new();
+            for y in 0..self.height {
+                if !self.is_line_empty(y) {
+                    lines.push(y);
+                }
+            }
+            lines
+        };
+        let rectangley = {
+            let mut rectangles: Vec<(usize, usize)> = Vec::new();
+            let mut y_min = 0;
+            let mut last_y = 0;
+            for y in lines {
+                if y_min == 0 {
+                    y_min = y;
+                    last_y = y;
+                    continue;
+                }
+                if y == last_y + 1 {
+                    last_y = y;
+                    continue;
+                }
+                rectangles.push((y_min, last_y));
+                y_min = y;
+                last_y = y;
+            }
+            if y_min != 0 {
+                rectangles.push((y_min, last_y));
+            }
+            rectangles
+        };
+        let rectangles = {
+            let mut rectangles: Vec<Rectangle> = Vec::new();
+            for rectangle in rectangley {
+                let (y_min, y_max) = rectangle;
+                let mut x_min = self.width - 1;
+                let mut x_max = 0;
+                for y in y_min..y_max {
+                    let x_min_new = self.x_min_row(y);
+                    let x_max_new = self.x_max_row(y);
+                    if x_min_new < x_min {
+                        x_min = x_min_new;
+                    }
+                    if x_max_new > x_max {
+                        x_max = x_max_new;
+                    }
+                }
+                rectangles.push(Rectangle::new(x_min, y_min, x_max, y_max));
+            }
+            rectangles
+        };
+        rectangles
     }
 }

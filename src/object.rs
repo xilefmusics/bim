@@ -130,3 +130,68 @@ impl FromIterator<Pixel> for SimpleObject {
 }
 
 impl Object for SimpleObject {}
+
+#[derive(Debug, Clone)]
+pub struct Rectangle {
+    x_min: usize,
+    y_min: usize,
+    x_max: usize,
+    y_max: usize,
+}
+
+pub struct RectanglePixelIterator {
+    x_min: usize,
+    x_max: usize,
+    y_max: usize,
+    x: usize,
+    y: usize,
+}
+
+impl Iterator for RectanglePixelIterator {
+    type Item = Pixel;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let pixel = Pixel::new(self.x, self.y);
+
+        if self.x < self.x_max {
+            self.x = self.x + 1;
+            return Some(pixel);
+        }
+
+        if self.y < self.y_max {
+            self.x = self.x_min;
+            self.y = self.y + 1;
+            return Some(pixel);
+        }
+
+        None
+    }
+}
+
+impl Rectangle {
+    pub fn new(x_min: usize, y_min: usize, x_max: usize, y_max: usize) -> Self {
+        Self {
+            x_min,
+            y_min,
+            x_max,
+            y_max,
+        }
+    }
+}
+
+impl IntoIterator for Rectangle {
+    type Item = Pixel;
+    type IntoIter = RectanglePixelIterator;
+
+    fn into_iter(self) -> RectanglePixelIterator {
+        RectanglePixelIterator {
+            x_min: self.x_min,
+            x_max: self.x_max,
+            y_max: self.y_max,
+            x: self.x_min,
+            y: self.y_min,
+        }
+    }
+}
+
+impl Object for Rectangle {}

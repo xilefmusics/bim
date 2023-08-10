@@ -28,23 +28,57 @@ struct Args {
     #[arg(short, long, default_value_t = 0)]
     pub width: usize,
     /// Clear pixels if at most 1 neighbor, set pixel with at least 3 neighbors
-    #[arg(short, long, default_value_t = false)]
+    #[arg(long, default_value_t = false)]
     pub remove_salt_and_pepper: bool,
+    /// The red channel of the color which should be set to black
+    #[arg(short, long, default_value_t = 0.0)]
+    pub red: f64,
+    /// The green channel of the color which should be set to black
+    #[arg(short, long, default_value_t = 0.0)]
+    pub green: f64,
+    /// The blue channel of the color which should be set to black
+    #[arg(short, long, default_value_t = 0.0)]
+    pub blue: f64,
+    /// The threshold that defines when a pixel gets set to 0 or 1 (its a value between 0 and 1)
+    #[arg(long, default_value_t = 0.2)]
+    pub secondary_threshold: f64,
 }
 
 fn main() {
     let args = Args::parse();
 
-    let mut image = Image::from_png(&args.input_path, args.threshold).unwrap();
+    let mut image = Image::from_png(&args.input_path, 0.0, 0.0, 0.0, args.threshold).unwrap();
     if args.clear_border {
         image.clear_border();
     }
     if args.threshold2 > 0.0 {
-        let image2 = Image::from_png(&args.input_path, args.threshold2).unwrap();
+        let image2 = Image::from_png(&args.input_path, 0.0, 0.0, 0.0, args.threshold2).unwrap();
         image.merge_grow(&image2);
         if args.clear_border {
             image.clear_border();
         }
+    }
+
+    if args.red != 0.0 || args.green != 0.0 || args.blue != 0.0 {
+        let mut secondary_image = Image::from_png(
+            &args.input_path,
+            args.red,
+            args.green,
+            args.blue,
+            args.secondary_threshold,
+        )
+        .unwrap();
+        if args.clear_border {
+            secondary_image.clear_border();
+        }
+        let rectangles = secondary_image.get_rectangles();
+
+        for rectangle in &rectangles {
+            secondary_image.draw(rectangle.clone());
+        }
+        secondary_image
+            .to_png(format!("{}.secondary.png", &args.output_path))
+            .unwrap();
     }
 
     if args.remove_salt_and_pepper {
@@ -64,14 +98,4 @@ fn main() {
     image = image.change_border_width(x_min, padding_left, image.width() - x_max, padding_right);
 
     image.to_png(&args.output_path).unwrap();
-
-    image
-        .vertical_down_div()
-        .to_png(format!("{}.vd_diff.png", &args.output_path))
-        .unwrap();
-
-    image
-        .vertical_up_div()
-        .to_png(format!("{}.vu_diff.png", &args.output_path))
-        .unwrap();
 }
