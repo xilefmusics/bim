@@ -3,7 +3,7 @@ pub mod decoder;
 pub mod encoder;
 pub mod image;
 
-use cutout::ReferencedCutout;
+use cutout::Cutout;
 use image::Image;
 
 fn main() {
@@ -17,7 +17,7 @@ fn main() {
     img_and.to_png("0_output_and.png").unwrap();
 
     let cutout = img_yellow.full_cutout();
-    let parts = cutout.yparts().collect::<Vec<ReferencedCutout>>();
+    let parts = cutout.yparts().collect::<Vec<Cutout>>();
     for (idx, part) in parts.iter().enumerate() {
         part.trimm_left()
             .unwrap()

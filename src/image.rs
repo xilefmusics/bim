@@ -1,4 +1,4 @@
-use crate::cutout::ReferencedCutout;
+use crate::cutout::Cutout;
 use crate::decoder::{IndexedDecoder, ThreeByteDecoder};
 use crate::encoder::OneBitEncoder;
 use derivative::Derivative;
@@ -128,8 +128,8 @@ impl Image {
         Ok(new)
     }
 
-    pub fn full_cutout(&self) -> ReferencedCutout {
-        ReferencedCutout::new(self, self.width, self.height, 0, 0)
+    pub fn full_cutout(&self) -> Cutout {
+        Cutout::new(self, self.width, self.height, 0, 0)
     }
 
     pub fn cutout(
@@ -138,10 +138,10 @@ impl Image {
         height: usize,
         offx: usize,
         offy: usize,
-    ) -> Result<ReferencedCutout, String> {
+    ) -> Result<Cutout, String> {
         if self.width < offx + width || self.height < offy + height {
             return Err("dimensions do not match".into());
         }
-        Ok(ReferencedCutout::new(self, width, height, offx, offy))
+        Ok(Cutout::new(self, width, height, offx, offy))
     }
 }

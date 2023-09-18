@@ -1,15 +1,7 @@
 use crate::image::Image;
 
-trait Cutout {
-    fn width(&self) -> usize;
-    fn height(&self) -> usize;
-    fn offx(&self) -> usize;
-    fn offy(&self) -> usize;
-    fn get(&self, x: usize, y: usize) -> bool;
-}
-
 #[derive(Clone, Debug)]
-pub struct ReferencedCutout<'a> {
+pub struct Cutout<'a> {
     image: &'a Image,
     width: usize,
     height: usize,
@@ -17,29 +9,7 @@ pub struct ReferencedCutout<'a> {
     offy: usize,
 }
 
-impl<'a> Cutout for ReferencedCutout<'a> {
-    fn width(&self) -> usize {
-        self.width
-    }
-
-    fn height(&self) -> usize {
-        self.height
-    }
-
-    fn offx(&self) -> usize {
-        self.offx
-    }
-
-    fn offy(&self) -> usize {
-        self.offy
-    }
-
-    fn get(&self, x: usize, y: usize) -> bool {
-        self.image.get(x + self.offx, y + self.offy)
-    }
-}
-
-impl<'a> ReferencedCutout<'a> {
+impl<'a> Cutout<'a> {
     pub fn new(image: &'a Image, width: usize, height: usize, offx: usize, offy: usize) -> Self {
         Self {
             image,
@@ -54,8 +24,24 @@ impl<'a> ReferencedCutout<'a> {
         self.image
     }
 
-    fn lines(&self, reverse: bool) -> CutoutLineIterator<&'a Self> {
-        CutoutLineIterator::new(self, reverse)
+    pub fn width(&self) -> usize {
+        self.width
+    }
+
+    pub fn height(&self) -> usize {
+        self.height
+    }
+
+    pub fn offx(&self) -> usize {
+        self.offx
+    }
+
+    pub fn offy(&self) -> usize {
+        self.offy
+    }
+
+    pub fn get(&self, x: usize, y: usize) -> bool {
+        self.image.get(x + self.offx, y + self.offy)
     }
 
     pub fn cutout(&self, width: usize, height: usize, offx: usize, offy: usize) -> Self {
@@ -155,6 +141,10 @@ impl<'a> ReferencedCutout<'a> {
         CutoutColumnIterator::new(self, reverse)
     }
 
+    pub fn lines(&self, reverse: bool) -> CutoutLineIterator {
+        CutoutLineIterator::new(self, reverse)
+    }
+
     pub fn yparts(&self) -> CutoutYPartIterator {
         CutoutYPartIterator::new(self)
     }
@@ -173,13 +163,13 @@ impl<'a> ReferencedCutout<'a> {
 }
 
 pub struct CutoutColumnIterator<'a> {
-    cutout: &'a ReferencedCutout<'a>,
+    cutout: &'a Cutout<'a>,
     current: usize,
     reverse: bool,
 }
 
 impl<'a> CutoutColumnIterator<'a> {
-    pub fn new(cutout: &'a ReferencedCutout, reverse: bool) -> Self {
+    pub fn new(cutout: &'a Cutout, reverse: bool) -> Self {
         let current = 0;
         Self {
             cutout,
@@ -190,7 +180,7 @@ impl<'a> CutoutColumnIterator<'a> {
 }
 
 impl<'a> Iterator for CutoutColumnIterator<'a> {
-    type Item = ReferencedCutout<'a>;
+    type Item = Cutout<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.current >= self.cutout.width {
@@ -207,18 +197,18 @@ impl<'a> Iterator for CutoutColumnIterator<'a> {
         let offy = self.cutout.offy;
         let height = self.cutout.height;
         self.current = self.current + 1;
-        Some(ReferencedCutout::new(image, width, height, offx, offy))
+        Some(Cutout::new(image, width, height, offx, offy))
     }
 }
 
-pub struct CutoutLineIterator<T: Cutout> {
-    cutout: T,
+pub struct CutoutLineIterator<'a> {
+    cutout: &'a Cutout<'a>,
     current: usize,
     reverse: bool,
 }
 
-impl<T> CutoutLineIterator<T> {
-    pub fn new(cutout: T, reverse: bool) -> Self {
+impl<'a> CutoutLineIterator<'a> {
+    pub fn new(cutout: &'a Cutout, reverse: bool) -> Self {
         let current = 0;
         Self {
             cutout,
@@ -228,8 +218,8 @@ impl<T> CutoutLineIterator<T> {
     }
 }
 
-impl Iterator for CutoutLineIterator {
-    type Item = Cutout;
+impl<'a> Iterator for CutoutLineIterator<'a> {
+    type Item = Cutout<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.current >= self.cutout.height {
@@ -246,28 +236,28 @@ impl Iterator for CutoutLineIterator {
         };
         let height = 1;
         self.current = self.current + 1;
-        Some(ReferencedCutout::new(image, width, height, offx, offy))
+        Some(Cutout::new(image, width, height, offx, offy))
     }
 }
 
 pub struct CutoutYPartIterator<'a> {
-    cutout: ReferencedCutout<'a>,
+    cutout: Cutout<'a>,
 }
 
 impl<'a> CutoutYPartIterator<'a> {
-    pub fn new(cutout: &ReferencedCutout<'a>) -> Self {
+    pub fn new(cutout: &Cutout<'a>) -> Self {
         let cutout = cutout.clone();
         Self { cutout }
     }
 }
 
 impl<'a> Iterator for CutoutYPartIterator<'a> {
-    type Item = ReferencedCutout<'a>;
+    type Item = Cutout<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.cutout = self.cutout.trimm_top()?;
         let result = self.cutout.till_blank_line()?;
-        self.cutout = ReferencedCutout::new(
+        self.cutout = Cutout::new(
             self.cutout.image,
             self.cutout.width,
             self.cutout.height - result.height,
