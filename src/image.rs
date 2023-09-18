@@ -1,20 +1,32 @@
+use crate::cutout::ReferencedCutout;
 use crate::decoder::{IndexedDecoder, ThreeByteDecoder};
 use crate::encoder::OneBitEncoder;
-use crate::object::{Object, Pixel, Rectangle};
+use derivative::Derivative;
 use std::error::Error;
 use std::fs::File;
 use std::io::BufWriter;
 use std::path::Path;
 
+#[derive(Derivative)]
+#[derivative(Debug)]
 pub struct Image {
     width: usize,
     height: usize,
+    #[derivative(Debug = "ignore")]
     data: Vec<bool>,
 }
 
 impl Image {
-    pub fn new(width: usize, height: usize) -> Self {
+    pub fn new_empty(width: usize, height: usize) -> Self {
         let data = vec![false; width * height];
+        Self {
+            width,
+            height,
+            data,
+        }
+    }
+
+    pub fn new(width: usize, height: usize, data: Vec<bool>) -> Self {
         Self {
             width,
             height,
@@ -89,7 +101,7 @@ impl Image {
         Ok(())
     }
 
-    pub fn pixel_at(&self, x: usize, y: usize) -> bool {
+    pub fn get(&self, x: usize, y: usize) -> bool {
         let idx = y * self.width + x;
         if idx >= self.data.len() {
             return false;
@@ -97,332 +109,39 @@ impl Image {
         self.data[idx]
     }
 
-    pub fn pixel_clear(&mut self, x: usize, y: usize) {
+    pub fn set(&mut self, x: usize, y: usize, value: bool) {
         let idx = y * self.width + x;
         if idx >= self.data.len() {
             return;
         }
-        self.data[idx] = false;
+        self.data[idx] = value;
     }
 
-    pub fn pixel_set(&mut self, x: usize, y: usize) {
-        let idx = y * self.width + x;
-        if idx >= self.data.len() {
-            return;
+    pub fn and(&self, other: &Self) -> Result<Self, String> {
+        if self.width != other.width || self.height != other.height {
+            return Err("dimensions do not match".into());
         }
-        self.data[idx] = true;
-    }
-
-    pub fn has_pixel(&self, pixel: &Pixel) -> bool {
-        self.pixel_at(pixel.x(), pixel.y())
-    }
-
-    pub fn clear_pixel(&mut self, pixel: &Pixel) {
-        self.pixel_clear(pixel.x(), pixel.y());
-    }
-
-    pub fn set_pixel(&mut self, pixel: &Pixel) {
-        self.pixel_set(pixel.x(), pixel.y());
-    }
-
-    pub fn clear(&mut self, pixels: impl IntoIterator<Item = Pixel>) {
-        for pixel in pixels.into_iter() {
-            self.clear_pixel(&pixel);
+        let mut new = Image::new_empty(self.width, self.height);
+        for i in 0..self.data.len() {
+            new.data[i] = self.data[i] && other.data[i];
         }
+        Ok(new)
     }
 
-    pub fn clear_border(&mut self) {
-        for x in 0..self.width {
-            self.clear(Pixel::new(x, 0).connected_grow(self));
-            self.clear(Pixel::new(x, self.height - 1).connected_grow(self));
-        }
-        for y in 0..self.height {
-            self.clear(Pixel::new(0, y).connected_grow(self));
-            self.clear(Pixel::new(self.width - 1, y).connected_grow(self))
-        }
+    pub fn full_cutout(&self) -> ReferencedCutout {
+        ReferencedCutout::new(self, self.width, self.height, 0, 0)
     }
 
-    pub fn is_column_empty(&self, x: usize) -> bool {
-        for y in 0..self.height {
-            if self.pixel_at(x, y) {
-                return false;
-            }
-        }
-        true
-    }
-
-    pub fn is_line_empty(&self, y: usize) -> bool {
-        for x in 0..self.width {
-            if self.pixel_at(x, y) {
-                return false;
-            }
-        }
-        true
-    }
-
-    pub fn x_min(&self, skip: bool) -> usize {
-        let mut x_min = 0;
-        if skip {
-            for x in 0..self.width / 3 {
-                if self.is_column_empty(x) {
-                    x_min = x;
-                }
-            }
-            if x_min > self.width / 3 {
-                return self.x_min(false);
-            }
-        } else {
-            while self.is_column_empty(x_min) {
-                x_min += 1;
-            }
-        }
-        x_min
-    }
-
-    pub fn x_max(&self, skip: bool) -> usize {
-        let mut x_max = self.width - 1;
-        if skip {
-            for x in 0..self.width * 2 / 3 {
-                let x = self.width - x;
-                if self.is_column_empty(x) {
-                    x_max = x;
-                }
-            }
-            if x_max < self.width * 2 / 3 {
-                return self.x_max(false);
-            }
-        } else {
-            while self.is_column_empty(x_max) {
-                x_max -= 1;
-            }
-        }
-        x_max
-    }
-
-    pub fn change_border_width(
+    pub fn cutout(
         &self,
-        current_left: usize,
-        new_left: usize,
-        current_right: usize,
-        new_right: usize,
-    ) -> Self {
-        let width = self.width - current_left + new_left - current_right + new_right;
-        let height = self.height;
-        let mut data = Vec::with_capacity(width * height);
-
-        for y in 0..self.height {
-            for _ in 0..new_left {
-                data.push(false);
-            }
-            for x in current_left..(self.width - current_right) {
-                data.push(self.pixel_at(x, y));
-            }
-            for _ in 0..new_right {
-                data.push(false);
-            }
+        width: usize,
+        height: usize,
+        offx: usize,
+        offy: usize,
+    ) -> Result<ReferencedCutout, String> {
+        if self.width < offx + width || self.height < offy + height {
+            return Err("dimensions do not match".into());
         }
-
-        Self {
-            width,
-            height,
-            data,
-        }
-    }
-
-    pub fn width(&self) -> usize {
-        self.width
-    }
-
-    pub fn height(&self) -> usize {
-        self.height
-    }
-
-    pub fn set_pixel_if_at_least_n_neighbors(&mut self, x: usize, y: usize, n: usize) {
-        let mut counter = 0;
-        if y > 0 && self.pixel_at(x, y - 1) {
-            counter += 1
-        };
-        if self.pixel_at(x, y + 1) {
-            counter += 1
-        };
-        if x > 0 && self.pixel_at(x - 1, y) {
-            counter += 1
-        };
-        if self.pixel_at(x + 1, y) {
-            counter += 1
-        };
-        if counter >= n {
-            self.pixel_set(x, y);
-        }
-    }
-
-    pub fn clear_pixel_if_at_most_n_neighbors(&mut self, x: usize, y: usize, n: usize) {
-        let mut counter = 0;
-        if y > 0 && self.pixel_at(x, y - 1) {
-            counter += 1
-        };
-        if self.pixel_at(x, y + 1) {
-            counter += 1
-        };
-        if x > 0 && self.pixel_at(x - 1, y) {
-            counter += 1
-        };
-        if self.pixel_at(x + 1, y) {
-            counter += 1
-        };
-        if counter <= n {
-            self.pixel_clear(x, y);
-        }
-    }
-
-    pub fn merge_grow(&mut self, other: &Self) {
-        for y in 0..self.height {
-            for x in 0..self.width {
-                if other.pixel_at(x, y) && !self.pixel_at(x, y) {
-                    self.set_pixel_if_at_least_n_neighbors(x, y, 1);
-                }
-                if other.pixel_at(self.width - x, self.height - y)
-                    && !self.pixel_at(self.width - x, self.height - y)
-                {
-                    self.set_pixel_if_at_least_n_neighbors(self.width - x, self.height - y, 1);
-                }
-            }
-        }
-    }
-
-    pub fn remove_salt_and_pepper(&mut self) {
-        for y in 0..self.height {
-            for x in 0..self.width {
-                self.set_pixel_if_at_least_n_neighbors(x, y, 3);
-                self.clear_pixel_if_at_most_n_neighbors(x, y, 1);
-                self.set_pixel_if_at_least_n_neighbors(self.width - x, self.height - y, 3);
-                self.clear_pixel_if_at_most_n_neighbors(self.width - x, self.height - y, 1);
-            }
-        }
-    }
-
-    pub fn vertical_down_div(&self) -> Self {
-        let width = self.width;
-        let height = self.height;
-        let mut data = Vec::with_capacity(width * height);
-
-        for _ in 0..self.width {
-            data.push(false);
-        }
-
-        for y in 1..self.height {
-            for x in 0..self.width {
-                data.push(!self.pixel_at(x, y - 1) && self.pixel_at(x, y));
-            }
-        }
-
-        Self {
-            width,
-            height,
-            data,
-        }
-    }
-
-    pub fn vertical_up_div(&self) -> Self {
-        let width = self.width;
-        let height = self.height;
-        let mut data = Vec::with_capacity(width * height);
-
-        for y in 0..self.height - 1 {
-            for x in 0..self.width {
-                data.push(self.pixel_at(x, y) && !self.pixel_at(x, y + 1));
-            }
-        }
-
-        for _ in 0..self.width {
-            data.push(false);
-        }
-
-        Self {
-            width,
-            height,
-            data,
-        }
-    }
-
-    pub fn x_min_row(&self, y: usize) -> usize {
-        for x in 0..self.width {
-            if self.pixel_at(x, y) {
-                return x;
-            }
-        }
-        self.width - 1
-    }
-
-    pub fn x_max_row(&self, y: usize) -> usize {
-        for x in 0..self.width {
-            let x = self.width - x;
-            if self.pixel_at(x, y) {
-                return x;
-            }
-        }
-        0
-    }
-
-    pub fn draw<T: Object>(&mut self, object: T) {
-        for pixel in object.into_iter() {
-            self.set_pixel(&pixel);
-        }
-    }
-
-    pub fn get_rectangles(&self) -> Vec<Rectangle> {
-        let lines = {
-            let mut lines: Vec<usize> = Vec::new();
-            for y in 0..self.height {
-                if !self.is_line_empty(y) {
-                    lines.push(y);
-                }
-            }
-            lines
-        };
-        let rectangley = {
-            let mut rectangles: Vec<(usize, usize)> = Vec::new();
-            let mut y_min = 0;
-            let mut last_y = 0;
-            for y in lines {
-                if y_min == 0 {
-                    y_min = y;
-                    last_y = y;
-                    continue;
-                }
-                if y == last_y + 1 {
-                    last_y = y;
-                    continue;
-                }
-                rectangles.push((y_min, last_y));
-                y_min = y;
-                last_y = y;
-            }
-            if y_min != 0 {
-                rectangles.push((y_min, last_y));
-            }
-            rectangles
-        };
-        let rectangles = {
-            let mut rectangles: Vec<Rectangle> = Vec::new();
-            for rectangle in rectangley {
-                let (y_min, y_max) = rectangle;
-                let mut x_min = self.width - 1;
-                let mut x_max = 0;
-                for y in y_min..y_max {
-                    let x_min_new = self.x_min_row(y);
-                    let x_max_new = self.x_max_row(y);
-                    if x_min_new < x_min {
-                        x_min = x_min_new;
-                    }
-                    if x_max_new > x_max {
-                        x_max = x_max_new;
-                    }
-                }
-                rectangles.push(Rectangle::new(x_min, y_min, x_max, y_max));
-            }
-            rectangles
-        };
-        rectangles
+        Ok(ReferencedCutout::new(self, width, height, offx, offy))
     }
 }
