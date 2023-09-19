@@ -7,25 +7,26 @@ use cutout::Cutout;
 use image::Image;
 
 fn main() {
-    let img_black = Image::from_png("input.png", 0.0, 0.0, 0.0, 0.8).unwrap();
-    img_black.to_png("0_output_black.png").unwrap();
+    let image = {
+        let mut img_black = Image::from_png("input.png", 0.0, 0.0, 0.0, 0.8).unwrap();
+        let img_yellow = Image::from_png("input.png", 254.0, 218.0, 13.0, 0.2).unwrap();
+        let cutout = img_yellow.full_cutout();
+        for part in cutout.yparts() {
+            let part = part.trimm_left().unwrap().trimm_right().unwrap();
+            let mut image = part.to_image();
+            image.fill_border();
+            img_black.overwrite(&image, part.offx(), part.offy()); // TODO use pixel iterator with
+                                                                   // transformation
+        }
+        img_black
+    };
 
-    let img_yellow = Image::from_png("input.png", 254.0, 218.0, 13.0, 0.2).unwrap();
-    img_yellow.to_png("0_output_yellow.png").unwrap();
+    image.to_png("output.png").unwrap();
 
-    let img_and = img_black.and(&img_yellow).unwrap();
-    img_and.to_png("0_output_and.png").unwrap();
-
-    let cutout = img_yellow.full_cutout();
+    let cutout = image.full_cutout();
     let parts = cutout.yparts().collect::<Vec<Cutout>>();
     for (idx, part) in parts.iter().enumerate() {
-        part.trimm_left()
-            .unwrap()
-            .trimm_right()
-            .unwrap()
-            .to_image()
-            .to_png(format!("0_part{}.png", idx))
-            .unwrap();
+        let image = part.to_image();
+        image.to_png(format!("0_parts/{:03}.png", idx)).unwrap();
     }
-    println!("{:?}", parts);
 }

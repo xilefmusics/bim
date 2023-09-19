@@ -117,17 +117,6 @@ impl Image {
         self.data[idx] = value;
     }
 
-    pub fn and(&self, other: &Self) -> Result<Self, String> {
-        if self.width != other.width || self.height != other.height {
-            return Err("dimensions do not match".into());
-        }
-        let mut new = Image::new_empty(self.width, self.height);
-        for i in 0..self.data.len() {
-            new.data[i] = self.data[i] && other.data[i];
-        }
-        Ok(new)
-    }
-
     pub fn full_cutout(&self) -> Cutout {
         Cutout::new(self, self.width, self.height, 0, 0)
     }
@@ -143,5 +132,52 @@ impl Image {
             return Err("dimensions do not match".into());
         }
         Ok(Cutout::new(self, width, height, offx, offy))
+    }
+
+    pub fn fill_border(&mut self) {
+        for x in 0..self.width {
+            let mut y = 0;
+            while !self.get(x, y) {
+                self.set(x, y, true);
+                y = y + 1;
+            }
+            let mut y = self.height - 1;
+            while !self.get(x, y) {
+                self.set(x, y, true);
+                y = y - 1;
+            }
+        }
+        for y in 0..self.height {
+            let mut x = 0;
+            while !self.get(x, y) {
+                self.set(x, y, true);
+                x = x + 1;
+            }
+            let mut x = self.width - 1;
+            while !self.get(x, y) {
+                self.set(x, y, true);
+                x = x - 1;
+            }
+        }
+    }
+
+    pub fn overwrite(&mut self, other: &Image, offx: usize, offy: usize) {
+        for y in 0..other.height {
+            for x in 0..other.width {
+                self.set(x + offx, y + offy, other.get(x, y))
+            }
+        }
+    }
+
+    pub fn diff_down_up(&self) -> Self {
+        let mut result = Self::new_empty(self.width, self.height);
+        for y in 1..self.height {
+            for x in 0..self.width {
+                if !self.get(x, y) && self.get(x, y - 1) {
+                    result.set(x, y - 1, true)
+                }
+            }
+        }
+        result
     }
 }
