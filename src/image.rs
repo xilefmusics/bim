@@ -54,13 +54,34 @@ impl Image {
         blue: f64,
         tcolor: f64,
         tobj: usize,
+        clean_border: bool,
     ) -> Result<Self, Box<dyn Error>> {
         let image = Self::from_png(path, red, green, blue, tcolor)?;
         let image = if tobj > 0 {
             let mut imager = Self::new_empty(image.width, image.height);
-            for object in image.full_cutout().objects().into_iter().filter(|object| {
-                object.size() > 50 && !object.touches_border(image.width(), image.height())
-            }) {
+            for object in image
+                .full_cutout()
+                .objects(false)
+                .into_iter()
+                .filter(|object| {
+                    object.size() >= tobj
+                        && (!object.touches_border(image.width(), image.height()) || !clean_border)
+                })
+            {
+                for object in image
+                    .full_cutout()
+                    .cutout(
+                        object.width(),
+                        object.height(),
+                        object.xmin(),
+                        object.ymin(),
+                    )
+                    .objects(true)
+                    .into_iter()
+                    .filter(|object| object.size() < tobj)
+                {
+                    imager.set_pixels(object)
+                }
                 imager.set_pixels(object)
             }
             imager

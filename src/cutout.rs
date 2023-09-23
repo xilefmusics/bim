@@ -1,5 +1,5 @@
 use crate::image::Image;
-use crate::object::{IntoPixelsToOneHeightRectangles, Object, Pixel, RectangleCollection};
+use crate::object::{IntoPixelsToOneHeightRectangles, Pixel, RectangleCollection};
 
 #[derive(Clone, Debug)]
 pub struct Cutout<'a> {
@@ -154,10 +154,10 @@ impl<'a> Cutout<'a> {
         CutoutPixelIterator::new(self, invert, image_scope)
     }
 
-    pub fn objects(&self) -> Vec<RectangleCollection> {
+    pub fn objects(&self, invert: bool) -> Vec<RectangleCollection> {
         let mut collections: Vec<RectangleCollection> = Vec::new();
         for line in self.lines(false) {
-            for rectangle in line.pixels(false, true).to_one_height_rectangles() {
+            for rectangle in line.pixels(invert, true).to_one_height_rectangles() {
                 let touched_collection_ids = collections
                     .iter()
                     .enumerate()
