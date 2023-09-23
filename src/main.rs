@@ -16,25 +16,25 @@ struct Args {
     /// The output path of the png
     pub output_path: String,
     /// The threshold that defines when a pixel gets set to 0 or 1 (its a value between 0 and 1)
-    #[arg(short, long, default_value_t = 0.8)]
+    #[arg(short, long, default_value_t = 0.5)] // 0.8
     pub threshold: f64,
     /// The threshold of the pixel size of objects that are filter out as salt and pepper
-    #[arg(short, long, default_value_t = 50)]
+    #[arg(short, long, default_value_t = 0)] // 50
     pub obj_threshold: usize,
     /// The threshold to read in a specific coller
-    #[arg(short, long, default_value_t = 0.2)]
+    #[arg(short, long, default_value_t = 0.0)] // 0.2
     pub color_threshold: f64,
     /// The red channel of the extra coller to read in
-    #[arg(short, long, default_value_t = 254)]
+    #[arg(short, long, default_value_t = 0)] // 254
     pub red: u8,
     /// The green channel of the extra collor to read in
-    #[arg(short, long, default_value_t = 218)]
+    #[arg(short, long, default_value_t = 0)] // 218
     pub green: u8,
     /// The blue channel of the extra collor to read in
-    #[arg(short, long, default_value_t = 13)]
+    #[arg(short, long, default_value_t = 0)] // 13
     pub blue: u8,
     /// The width to which the image should be padded
-    #[arg(short, long, default_value_t = 2800)]
+    #[arg(short, long, default_value_t = 0)] // 2480
     pub width: usize,
 }
 

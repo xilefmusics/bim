@@ -267,15 +267,17 @@ impl Image {
 
     pub fn horizontal_padding(&self, width: usize) -> Result<Image, Box<dyn Error>> {
         let old_width = self.width();
-        let cutout = self.full_cutout().trimm_left().unwrap();
-        let trimmed_width = cutout.width();
-        let pixels_to_move = width / 2 + trimmed_width / 2 - old_width;
-        let mut result = Image::new_empty(width, self.height());
-        result.set_pixels(
-            cutout
-                .pixels(false, true)
-                .map(|pixel| pixel.addx(pixels_to_move)),
-        );
-        Ok(result)
+        if let Some(cutout) = self.full_cutout().trimm_left() {
+            let trimmed_width = cutout.width();
+            let pixels_to_move = width / 2 + trimmed_width / 2 - old_width;
+            let mut result = Image::new_empty(width, self.height());
+            result.set_pixels(
+                cutout
+                    .pixels(false, true)
+                    .map(|pixel| pixel.addx(pixels_to_move)),
+            );
+            return Ok(result);
+        }
+        Ok(Image::new_empty(width, self.height))
     }
 }
