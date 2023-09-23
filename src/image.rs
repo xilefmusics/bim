@@ -1,7 +1,7 @@
 use crate::cutout::Cutout;
 use crate::decoder::{IndexedDecoder, ThreeByteDecoder};
 use crate::encoder::OneBitEncoder;
-use crate::object::Pixel;
+use crate::object::{Object, Pixel};
 use derivative::Derivative;
 use std::error::Error;
 use std::fs::File;
@@ -45,6 +45,29 @@ impl Image {
 
     pub fn has_pixel(&self, pixel: &Pixel) -> bool {
         self.get(pixel.x(), pixel.y())
+    }
+
+    pub fn from_png_filter(
+        path: impl AsRef<Path>,
+        red: f64,
+        green: f64,
+        blue: f64,
+        tcolor: f64,
+        tobj: usize,
+    ) -> Result<Self, Box<dyn Error>> {
+        let image = Self::from_png(path, red, green, blue, tcolor)?;
+        let image = if tobj > 0 {
+            let mut imager = Self::new_empty(image.width, image.height);
+            for object in image.full_cutout().objects().into_iter().filter(|object| {
+                object.size() > 50 && !object.touches_border(image.width(), image.height())
+            }) {
+                imager.set_pixels(object)
+            }
+            imager
+        } else {
+            image
+        };
+        Ok(image)
     }
 
     pub fn from_png(
