@@ -2,31 +2,24 @@ pub mod cutout;
 pub mod decoder;
 pub mod encoder;
 pub mod image;
+pub mod object;
+pub mod opt;
 
-use cutout::Cutout;
 use image::Image;
+use object::Object;
 
 fn main() {
-    let image = {
-        let mut img_black = Image::from_png("input.png", 0.0, 0.0, 0.0, 0.8).unwrap();
-        let img_yellow = Image::from_png("input.png", 254.0, 218.0, 13.0, 0.2).unwrap();
-        let cutout = img_yellow.full_cutout();
-        for part in cutout.yparts() {
-            let part = part.trimm_left().unwrap().trimm_right().unwrap();
-            let mut image = part.to_image();
-            image.fill_border();
-            img_black.overwrite(&image, part.offx(), part.offy()); // TODO use pixel iterator with
-                                                                   // transformation
-        }
-        img_black
-    };
-
-    image.to_png("output.png").unwrap();
-
-    let cutout = image.full_cutout();
-    let parts = cutout.yparts().collect::<Vec<Cutout>>();
-    for (idx, part) in parts.iter().enumerate() {
-        let image = part.to_image();
-        image.to_png(format!("0_parts/{:03}.png", idx)).unwrap();
+    let image_black = Image::from_png("input.png", 0.0, 0.0, 0.0, 0.8).unwrap();
+    let mut image_out = Image::new_empty(image_black.width(), image_black.height());
+    for object in image_black
+        .full_cutout()
+        .objects()
+        .into_iter()
+        .filter(|object| {
+            object.size() > 50 && !object.touches_border(image_black.width(), image_black.height())
+        })
+    {
+        image_out.set_pixels(object)
     }
+    image_out.to_png("output.png").unwrap();
 }

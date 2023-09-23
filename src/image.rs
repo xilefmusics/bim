@@ -1,6 +1,7 @@
 use crate::cutout::Cutout;
 use crate::decoder::{IndexedDecoder, ThreeByteDecoder};
 use crate::encoder::OneBitEncoder;
+use crate::object::Pixel;
 use derivative::Derivative;
 use std::error::Error;
 use std::fs::File;
@@ -8,7 +9,7 @@ use std::io::BufWriter;
 use std::path::Path;
 
 #[derive(Derivative)]
-#[derivative(Debug)]
+#[derivative(Debug, Clone)]
 pub struct Image {
     width: usize,
     height: usize,
@@ -32,6 +33,18 @@ impl Image {
             height,
             data,
         }
+    }
+
+    pub fn width(&self) -> usize {
+        self.width
+    }
+
+    pub fn height(&self) -> usize {
+        self.height
+    }
+
+    pub fn has_pixel(&self, pixel: &Pixel) -> bool {
+        self.get(pixel.x(), pixel.y())
     }
 
     pub fn from_png(
@@ -166,6 +179,24 @@ impl Image {
             for x in 0..other.width {
                 self.set(x + offx, y + offy, other.get(x, y))
             }
+        }
+    }
+
+    pub fn set_pixels<T>(&mut self, pixels: T)
+    where
+        T: IntoIterator<Item = Pixel>,
+    {
+        for pixel in pixels {
+            self.set(pixel.x(), pixel.y(), true)
+        }
+    }
+
+    pub fn clear_pixels<T>(&mut self, pixels: T)
+    where
+        T: IntoIterator<Item = Pixel>,
+    {
+        for pixel in pixels.into_iter() {
+            self.set(pixel.x(), pixel.y(), false)
         }
     }
 

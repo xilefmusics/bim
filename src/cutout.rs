@@ -1,4 +1,5 @@
 use crate::image::Image;
+use crate::object::{IntoPixelsToOneHeightRectangles, Object, Pixel, RectangleCollection};
 
 #[derive(Clone, Debug)]
 pub struct Cutout<'a> {
@@ -149,6 +150,39 @@ impl<'a> Cutout<'a> {
         CutoutYPartIterator::new(self)
     }
 
+    pub fn pixels(&self, invert: bool, image_scope: bool) -> CutoutPixelIterator {
+        CutoutPixelIterator::new(self, invert, image_scope)
+    }
+
+    pub fn objects(&self) -> Vec<RectangleCollection> {
+        let mut collections: Vec<RectangleCollection> = Vec::new();
+        for line in self.lines(false) {
+            for rectangle in line.pixels(false, true).to_one_height_rectangles() {
+                let touched_collection_ids = collections
+                    .iter()
+                    .enumerate()
+                    .map(|tupel| (tupel.0, tupel.1.bottom_touch(&rectangle)))
+                    .filter(|tupel| tupel.1)
+                    .map(|tupel| tupel.0)
+                    .collect::<Vec<usize>>();
+                if touched_collection_ids.len() == 0 {
+                    collections.push(RectangleCollection::new(rectangle));
+                } else if touched_collection_ids.len() == 1 {
+                    collections[touched_collection_ids[0]].add_rectangle(rectangle);
+                } else {
+                    let mut collection = RectangleCollection::new(rectangle);
+                    for id in touched_collection_ids.into_iter().rev() {
+                        for rectangle in collections.swap_remove(id).rectangles() {
+                            collection.add_rectangle(rectangle)
+                        }
+                    }
+                    collections.push(collection);
+                }
+            }
+        }
+        return collections;
+    }
+
     pub fn to_image(&self) -> Image {
         let width = self.width;
         let height = self.height;
@@ -160,8 +194,84 @@ impl<'a> Cutout<'a> {
         }
         image
     }
+
+    pub fn neighbors(&self, x: usize, y: usize) -> usize {
+        let mut result = 0;
+        if self.get(x - 1, y) {
+            result += 1;
+        }
+        if self.get(x + 1, y) {
+            result += 1;
+        }
+        if self.get(x, y - 1) {
+            result += 1;
+        }
+        if self.get(x, y + 1) {
+            result += 1;
+        }
+        return result;
+    }
 }
 
+#[derive(Clone, Debug)]
+pub struct CutoutPixelIterator<'a> {
+    cutout: &'a Cutout<'a>,
+    currx: usize,
+    curry: usize,
+    invert: bool,
+    image_scope: bool,
+    xisminusone: bool,
+}
+
+impl<'a> CutoutPixelIterator<'a> {
+    pub fn new(cutout: &'a Cutout, invert: bool, image_scope: bool) -> Self {
+        let currx = 0;
+        let curry = 0;
+        let xisminusone = true;
+        Self {
+            cutout,
+            currx,
+            curry,
+            invert,
+            image_scope,
+            xisminusone,
+        }
+    }
+}
+
+impl<'a> Iterator for CutoutPixelIterator<'a> {
+    type Item = Pixel;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        for y in self.curry..self.cutout.height {
+            let xmax = if self.xisminusone {
+                self.currx
+            } else {
+                self.currx + 1
+            };
+            for x in xmax..(self.cutout.width) {
+                self.xisminusone = false;
+                if self.cutout.get(x, y) && !self.invert || !self.cutout.get(x, y) && self.invert {
+                    self.currx = x;
+                    self.curry = y;
+                    if self.image_scope {
+                        return Some(Pixel::new(
+                            self.currx + self.cutout.offx,
+                            self.curry + self.cutout.offy,
+                        ));
+                    } else {
+                        return Some(Pixel::new(self.currx, self.curry));
+                    }
+                }
+            }
+            self.currx = 0;
+            self.xisminusone = true;
+        }
+        None
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct CutoutColumnIterator<'a> {
     cutout: &'a Cutout<'a>,
     current: usize,
@@ -201,6 +311,7 @@ impl<'a> Iterator for CutoutColumnIterator<'a> {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct CutoutLineIterator<'a> {
     cutout: &'a Cutout<'a>,
     current: usize,
@@ -240,6 +351,7 @@ impl<'a> Iterator for CutoutLineIterator<'a> {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct CutoutYPartIterator<'a> {
     cutout: Cutout<'a>,
 }
