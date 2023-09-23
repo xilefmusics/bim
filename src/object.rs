@@ -13,11 +13,11 @@ pub trait Object: IntoIterator<Item = Pixel> + Clone {
         self.ymax() - self.ymin() + 1
     }
     fn size(&self) -> usize;
-    fn touches_border(&self, width: usize, height: usize) -> bool {
-        self.xmin() == 0
-            || self.ymin() == 0
-            || self.xmax() == width - 1
-            || self.ymax() == height - 1
+    fn touches_border(&self, width: usize, height: usize, offx: usize, offy: usize) -> bool {
+        self.xmin() == offx
+            || self.ymin() == offy
+            || self.xmax() == offx + width - 1
+            || self.ymax() == offy + height - 1
     }
     fn to_simple_object(self) -> SimpleObject {
         let mut obj = SimpleObject::new();

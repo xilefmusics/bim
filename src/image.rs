@@ -65,7 +65,8 @@ impl Image {
                 .into_iter()
                 .filter(|object| {
                     object.size() >= tobj
-                        && (!object.touches_border(image.width(), image.height()) || !clean_border)
+                        && (!object.touches_border(image.width(), image.height(), 0, 0)
+                            || !clean_border)
                 })
             {
                 for object in image
@@ -78,7 +79,15 @@ impl Image {
                     )
                     .objects(true)
                     .into_iter()
-                    .filter(|object| object.size() < tobj)
+                    .filter(|obj| {
+                        obj.size() < tobj
+                            && !obj.touches_border(
+                                object.width(),
+                                object.height(),
+                                object.xmin(),
+                                object.ymin(),
+                            )
+                    })
                 {
                     imager.set_pixels(object)
                 }
@@ -254,5 +263,19 @@ impl Image {
             }
         }
         result
+    }
+
+    pub fn horizontal_padding(&self, width: usize) -> Result<Image, Box<dyn Error>> {
+        let old_width = self.width();
+        let cutout = self.full_cutout().trimm_left().unwrap();
+        let trimmed_width = cutout.width();
+        let pixels_to_move = width / 2 + trimmed_width / 2 - old_width;
+        let mut result = Image::new_empty(width, self.height());
+        result.set_pixels(
+            cutout
+                .pixels(false, true)
+                .map(|pixel| pixel.addx(pixels_to_move)),
+        );
+        Ok(result)
     }
 }
