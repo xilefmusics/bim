@@ -1,19 +1,24 @@
+use crate::cutout::Cutout;
 use crate::decoder::{IndexedDecoder, ThreeByteDecoder};
 use crate::encoder::OneBitEncoder;
 use crate::object::{Object, Pixel};
+use derivative::Derivative;
 use std::error::Error;
 use std::fs::File;
 use std::io::BufWriter;
 use std::path::Path;
 
+#[derive(Derivative)]
+#[derivative(Debug, Clone)]
 pub struct Image {
     width: usize,
     height: usize,
+    #[derivative(Debug = "ignore")]
     data: Vec<bool>,
 }
 
 impl Image {
-    pub fn new(width: usize, height: usize) -> Self {
+    pub fn new_empty(width: usize, height: usize) -> Self {
         let data = vec![false; width * height];
         Self {
             width,
@@ -22,7 +27,86 @@ impl Image {
         }
     }
 
-    pub fn from_png(path: impl AsRef<Path>, threshold: f64) -> Result<Self, Box<dyn Error>> {
+    pub fn new(width: usize, height: usize, data: Vec<bool>) -> Self {
+        Self {
+            width,
+            height,
+            data,
+        }
+    }
+
+    pub fn width(&self) -> usize {
+        self.width
+    }
+
+    pub fn height(&self) -> usize {
+        self.height
+    }
+
+    pub fn has_pixel(&self, pixel: &Pixel) -> bool {
+        self.get(pixel.x(), pixel.y())
+    }
+
+    pub fn from_png_filter(
+        path: impl AsRef<Path>,
+        red: f64,
+        green: f64,
+        blue: f64,
+        tcolor: f64,
+        tobj: usize,
+        clean_border: bool,
+    ) -> Result<Self, Box<dyn Error>> {
+        let image = Self::from_png(path, red, green, blue, tcolor)?;
+        let image = if tobj > 0 {
+            let mut imager = Self::new_empty(image.width, image.height);
+            for object in image
+                .full_cutout()
+                .objects(false)
+                .into_iter()
+                .filter(|object| {
+                    object.size() >= tobj
+                        && (!object.touches_border(image.width(), image.height(), 0, 0)
+                            || !clean_border)
+                })
+            {
+                for object in image
+                    .full_cutout()
+                    .cutout(
+                        object.width(),
+                        object.height(),
+                        object.xmin(),
+                        object.ymin(),
+                    )
+                    .objects(true)
+                    .into_iter()
+                    .filter(|obj| {
+                        obj.size() < tobj
+                            && !obj.touches_border(
+                                object.width(),
+                                object.height(),
+                                object.xmin(),
+                                object.ymin(),
+                            )
+                    })
+                {
+                    imager.set_pixels(object)
+                }
+                imager.set_pixels(object)
+            }
+            imager
+        } else {
+            image
+        };
+        Ok(image)
+    }
+
+    pub fn from_png(
+        path: impl AsRef<Path>,
+        red: f64,
+        green: f64,
+        blue: f64,
+        threshold: f64,
+    ) -> Result<Self, Box<dyn Error>> {
         let file = File::open(path)?;
         let decoder = png::Decoder::new(file);
         let mut reader = decoder.read_info()?;
@@ -38,6 +122,9 @@ impl Image {
                     .palette
                     .clone()
                     .ok_or("try to access pallette, but it's not there".to_string())?,
+                red,
+                green,
+                blue,
                 threshold,
             )
             .collect::<Vec<bool>>();
@@ -80,7 +167,7 @@ impl Image {
         Ok(())
     }
 
-    pub fn pixel_at(&self, x: usize, y: usize) -> bool {
+    pub fn get(&self, x: usize, y: usize) -> bool {
         let idx = y * self.width + x;
         if idx >= self.data.len() {
             return false;
@@ -88,198 +175,107 @@ impl Image {
         self.data[idx]
     }
 
-    pub fn pixel_clear(&mut self, x: usize, y: usize) {
+    pub fn set(&mut self, x: usize, y: usize, value: bool) {
         let idx = y * self.width + x;
         if idx >= self.data.len() {
             return;
         }
-        self.data[idx] = false;
+        self.data[idx] = value;
     }
 
-    pub fn pixel_set(&mut self, x: usize, y: usize) {
-        let idx = y * self.width + x;
-        if idx >= self.data.len() {
-            return;
-        }
-        self.data[idx] = true;
+    pub fn full_cutout(&self) -> Cutout {
+        Cutout::new(self, self.width, self.height, 0, 0)
     }
 
-    pub fn has_pixel(&self, pixel: &Pixel) -> bool {
-        self.pixel_at(pixel.x(), pixel.y())
-    }
-
-    pub fn clear_pixel(&mut self, pixel: &Pixel) {
-        self.pixel_clear(pixel.x(), pixel.y());
-    }
-
-    pub fn set_pixel(&mut self, pixel: &Pixel) {
-        self.pixel_set(pixel.x(), pixel.y());
-    }
-
-    pub fn clear(&mut self, pixels: impl IntoIterator<Item = Pixel>) {
-        for pixel in pixels.into_iter() {
-            self.clear_pixel(&pixel);
-        }
-    }
-
-    pub fn clear_border(&mut self) {
-        for x in 0..self.width {
-            self.clear(Pixel::new(x, 0).connected_grow(self));
-            self.clear(Pixel::new(x, self.height - 1).connected_grow(self));
-        }
-        for y in 0..self.height {
-            self.clear(Pixel::new(0, y).connected_grow(self));
-            self.clear(Pixel::new(self.width - 1, y).connected_grow(self))
-        }
-    }
-
-    pub fn is_column_empty(&self, x: usize) -> bool {
-        for y in 0..self.height {
-            if self.pixel_at(x, y) {
-                return false;
-            }
-        }
-        true
-    }
-
-    pub fn x_min(&self, skip: bool) -> usize {
-        let mut x_min = 0;
-        if skip {
-            for x in 0..self.width / 3 {
-                if self.is_column_empty(x) {
-                    x_min = x;
-                }
-            }
-            if x_min > self.width / 3 {
-                return self.x_min(false);
-            }
-        } else {
-            while self.is_column_empty(x_min) {
-                x_min += 1;
-            }
-        }
-        x_min
-    }
-
-    pub fn x_max(&self, skip: bool) -> usize {
-        let mut x_max = self.width - 1;
-        if skip {
-            for x in 0..self.width * 2 / 3 {
-                let x = self.width - x;
-                if self.is_column_empty(x) {
-                    x_max = x;
-                }
-            }
-            if x_max < self.width * 2 / 3 {
-                return self.x_max(false);
-            }
-        } else {
-            while self.is_column_empty(x_max) {
-                x_max -= 1;
-            }
-        }
-        x_max
-    }
-
-    pub fn change_border_width(
+    pub fn cutout(
         &self,
-        current_left: usize,
-        new_left: usize,
-        current_right: usize,
-        new_right: usize,
-    ) -> Self {
-        let width = self.width - current_left + new_left - current_right + new_right;
-        let height = self.height;
-        let mut data = Vec::with_capacity(width * height);
+        width: usize,
+        height: usize,
+        offx: usize,
+        offy: usize,
+    ) -> Result<Cutout, String> {
+        if self.width < offx + width || self.height < offy + height {
+            return Err("dimensions do not match".into());
+        }
+        Ok(Cutout::new(self, width, height, offx, offy))
+    }
 
+    pub fn fill_border(&mut self) {
+        for x in 0..self.width {
+            let mut y = 0;
+            while !self.get(x, y) {
+                self.set(x, y, true);
+                y = y + 1;
+            }
+            let mut y = self.height - 1;
+            while !self.get(x, y) {
+                self.set(x, y, true);
+                y = y - 1;
+            }
+        }
         for y in 0..self.height {
-            for _ in 0..new_left {
-                data.push(false);
+            let mut x = 0;
+            while !self.get(x, y) {
+                self.set(x, y, true);
+                x = x + 1;
             }
-            for x in current_left..(self.width - current_right) {
-                data.push(self.pixel_at(x, y));
+            let mut x = self.width - 1;
+            while !self.get(x, y) {
+                self.set(x, y, true);
+                x = x - 1;
             }
-            for _ in 0..new_right {
-                data.push(false);
+        }
+    }
+
+    pub fn overwrite(&mut self, other: &Image, offx: usize, offy: usize) {
+        for y in 0..other.height {
+            for x in 0..other.width {
+                self.set(x + offx, y + offy, other.get(x, y))
             }
         }
+    }
 
-        Self {
-            width,
-            height,
-            data,
+    pub fn set_pixels<T>(&mut self, pixels: T)
+    where
+        T: IntoIterator<Item = Pixel>,
+    {
+        for pixel in pixels {
+            self.set(pixel.x(), pixel.y(), true)
         }
     }
 
-    pub fn width(&self) -> usize {
-        self.width
-    }
-
-    pub fn height(&self) -> usize {
-        self.height
-    }
-
-    pub fn set_pixel_if_at_least_n_neighbors(&mut self, x: usize, y: usize, n: usize) {
-        let mut counter = 0;
-        if y > 0 && self.pixel_at(x, y - 1) {
-            counter += 1
-        };
-        if self.pixel_at(x, y + 1) {
-            counter += 1
-        };
-        if x > 0 && self.pixel_at(x - 1, y) {
-            counter += 1
-        };
-        if self.pixel_at(x + 1, y) {
-            counter += 1
-        };
-        if counter >= n {
-            self.pixel_set(x, y);
+    pub fn clear_pixels<T>(&mut self, pixels: T)
+    where
+        T: IntoIterator<Item = Pixel>,
+    {
+        for pixel in pixels.into_iter() {
+            self.set(pixel.x(), pixel.y(), false)
         }
     }
 
-    pub fn clear_pixel_if_at_most_n_neighbors(&mut self, x: usize, y: usize, n: usize) {
-        let mut counter = 0;
-        if y > 0 && self.pixel_at(x, y - 1) {
-            counter += 1
-        };
-        if self.pixel_at(x, y + 1) {
-            counter += 1
-        };
-        if x > 0 && self.pixel_at(x - 1, y) {
-            counter += 1
-        };
-        if self.pixel_at(x + 1, y) {
-            counter += 1
-        };
-        if counter <= n {
-            self.pixel_clear(x, y);
-        }
-    }
-
-    pub fn merge_grow(&mut self, other: &Self) {
-        for y in 0..self.height {
+    pub fn diff_down_up(&self) -> Self {
+        let mut result = Self::new_empty(self.width, self.height);
+        for y in 1..self.height {
             for x in 0..self.width {
-                if other.pixel_at(x, y) && !self.pixel_at(x, y) {
-                    self.set_pixel_if_at_least_n_neighbors(x, y, 1);
-                }
-                if other.pixel_at(self.width - x, self.height - y)
-                    && !self.pixel_at(self.width - x, self.height - y)
-                {
-                    self.set_pixel_if_at_least_n_neighbors(self.width - x, self.height - y, 1);
+                if !self.get(x, y) && self.get(x, y - 1) {
+                    result.set(x, y - 1, true)
                 }
             }
         }
+        result
     }
 
-    pub fn remove_salt_and_pepper(&mut self) {
-        for y in 0..self.height {
-            for x in 0..self.width {
-                self.set_pixel_if_at_least_n_neighbors(x, y, 3);
-                self.clear_pixel_if_at_most_n_neighbors(x, y, 1);
-                self.set_pixel_if_at_least_n_neighbors(self.width - x, self.height - y, 3);
-                self.clear_pixel_if_at_most_n_neighbors(self.width - x, self.height - y, 1);
-            }
-        }
+    pub fn horizontal_padding(&self, width: usize) -> Result<Image, Box<dyn Error>> {
+        let old_width = self.width();
+        let cutout = self.full_cutout().trimm_left().unwrap();
+        let trimmed_width = cutout.width();
+        let pixels_to_move = width / 2 + trimmed_width / 2 - old_width;
+        let mut result = Image::new_empty(width, self.height());
+        result.set_pixels(
+            cutout
+                .pixels(false, true)
+                .map(|pixel| pixel.addx(pixels_to_move)),
+        );
+        Ok(result)
     }
 }

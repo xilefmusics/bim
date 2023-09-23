@@ -1,5 +1,12 @@
-use bim::image::Image;
+pub mod cutout;
+pub mod decoder;
+pub mod encoder;
+pub mod image;
+pub mod object;
+
 use clap::Parser;
+use image::Image;
+use object::Object;
 
 #[derive(Debug, Parser)]
 #[command(author, version, about, long_about = None)]
@@ -9,59 +16,72 @@ struct Args {
     /// The output path of the png
     pub output_path: String,
     /// The threshold that defines when a pixel gets set to 0 or 1 (its a value between 0 and 1)
-    #[arg(short, long, default_value_t = 0.5)]
+    #[arg(short, long, default_value_t = 0.8)]
     pub threshold: f64,
-    /// A secondary threshold with whitch the image gets read a second time and only touching
-    /// pixels are set
-    #[arg(long, default_value_t = 0.0)]
-    pub threshold2: f64,
-    /// If set each object that touches the border gets removed
-    #[arg(short, long, default_value_t = false)]
-    pub clear_border: bool,
-    /// Skips artifacts on the right border when chaning the padding of the width
-    #[arg(long, default_value_t = false)]
-    pub skip_left: bool,
-    /// Skips artifacts on the left border when changing the padding of the width
-    #[arg(long, default_value_t = false)]
-    pub skip_right: bool,
-    /// The width the image gets padded to
-    #[arg(short, long, default_value_t = 0)]
+    /// The threshold of the pixel size of objects that are filter out as salt and pepper
+    #[arg(short, long, default_value_t = 50)]
+    pub obj_threshold: usize,
+    /// The threshold to read in a specific coller
+    #[arg(short, long, default_value_t = 0.2)]
+    pub color_threshold: f64,
+    /// The red channel of the extra coller to read in
+    #[arg(short, long, default_value_t = 254)]
+    pub red: u8,
+    /// The green channel of the extra collor to read in
+    #[arg(short, long, default_value_t = 218)]
+    pub green: u8,
+    /// The blue channel of the extra collor to read in
+    #[arg(short, long, default_value_t = 13)]
+    pub blue: u8,
+    /// The width to which the image should be padded
+    #[arg(short, long, default_value_t = 2800)]
     pub width: usize,
-    /// Clear pixels if at most 1 neighbor, set pixel with at least 3 neighbors
-    #[arg(short, long, default_value_t = false)]
-    pub remove_salt_and_pepper: bool,
 }
 
 fn main() {
     let args = Args::parse();
 
-    let mut image = Image::from_png(&args.input_path, args.threshold).unwrap();
-    if args.clear_border {
-        image.clear_border();
-    }
-    if args.threshold2 > 0.0 {
-        let image2 = Image::from_png(&args.input_path, args.threshold2).unwrap();
-        image.merge_grow(&image2);
-        if args.clear_border {
-            image.clear_border();
+    let mut image_black = Image::from_png_filter(
+        args.input_path.clone(),
+        0.0,
+        0.0,
+        0.0,
+        args.threshold,
+        args.obj_threshold,
+        true,
+    )
+    .unwrap();
+    if args.color_threshold > 0.0 {
+        let image_yellow = Image::from_png_filter(
+            args.input_path,
+            args.red as f64,
+            args.green as f64,
+            args.blue as f64,
+            args.color_threshold,
+            args.obj_threshold,
+            false,
+        )
+        .unwrap();
+        for object in image_yellow.full_cutout().objects(false) {
+            for object in image_yellow
+                .full_cutout()
+                .cutout(
+                    object.width(),
+                    object.height(),
+                    object.xmin(),
+                    object.ymin(),
+                )
+                .objects(true)
+                .into_iter()
+            {
+                image_black.clear_pixels(object)
+            }
+            image_black.set_pixels(object)
         }
     }
 
-    if args.remove_salt_and_pepper {
-        image.remove_salt_and_pepper();
+    if args.width > 0 {
+        image_black = image_black.horizontal_padding(args.width).unwrap()
     }
-
-    let x_min = image.x_min(args.skip_left);
-    let x_max = image.x_max(args.skip_right);
-    let (padding_left, padding_right) = if args.width > 0 {
-        let padding = args.width - (x_max - x_min);
-        let padding_left = padding / 2;
-        let padding_right = padding - padding_left;
-        (padding_left, padding_right)
-    } else {
-        (x_min, image.width() - x_max)
-    };
-    image = image.change_border_width(x_min, padding_left, image.width() - x_max, padding_right);
-
-    image.to_png(&args.output_path).unwrap();
+    image_black.to_png(args.output_path).unwrap();
 }

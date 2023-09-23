@@ -1,19 +1,25 @@
 pub struct ThreeByteDecoder<'a> {
     data: &'a [u8],
     idx: usize,
+    red: f64,
+    green: f64,
+    blue: f64,
     threshold: f64,
-    max_brightness: f64,
+    max_value: f64,
 }
 
 impl<'a> ThreeByteDecoder<'a> {
-    pub fn new(data: &'a [u8], threshold: f64) -> Self {
+    pub fn new(data: &'a [u8], red: f64, green: f64, blue: f64, threshold: f64) -> Self {
         let idx = 0;
-        let max_brightness = 258.7967349098516;
+        let max_value = 441.6729559300637;
         Self {
             data,
             idx,
+            red,
+            green,
+            blue,
             threshold,
-            max_brightness,
+            max_value,
         }
     }
 }
@@ -33,7 +39,11 @@ impl<'a> Iterator for ThreeByteDecoder<'a> {
         self.idx += 3;
 
         Some(
-            (0.299 * r * r + 0.587 * g * g + 0.144 * b * b).sqrt() / self.max_brightness
+            ((self.red - r) * (self.red - r)
+                + (self.green - g) * (self.green - g)
+                + (self.blue - b) * (self.blue - b))
+                .sqrt()
+                / self.max_value
                 < self.threshold,
         )
     }
