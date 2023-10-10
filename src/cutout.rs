@@ -66,7 +66,7 @@ impl<'a> Cutout<'a> {
         return true;
     }
 
-    pub fn trimm_y(&self, reverse: bool) -> Option<Self> {
+    fn trimm_y(&self, reverse: bool) -> Option<Self> {
         for line in self.lines(reverse) {
             if line.is_blank() {
                 continue;
