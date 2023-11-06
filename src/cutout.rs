@@ -211,6 +211,26 @@ impl<'a> Cutout<'a> {
         }
         return result;
     }
+
+    pub fn left_border(&self, pixels: usize) -> Self {
+        let mut max = 0;
+        for (idx, line) in self.columns(false).take(pixels).enumerate() {
+            if line.is_blank() {
+                max = idx;
+            }
+        }
+        self.cutout(max, self.height, 0, 0)
+    }
+
+    pub fn right_border(&self, pixels: usize) -> Self {
+        let mut max = 0;
+        for (idx, line) in self.columns(true).take(pixels).enumerate() {
+            if line.is_blank() {
+                max = idx;
+            }
+        }
+        self.cutout(max, self.height, self.width - max, 0)
+    }
 }
 
 #[derive(Clone, Debug)]

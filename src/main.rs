@@ -36,6 +36,12 @@ struct Args {
     /// The width to which the image should be padded
     #[arg(short, long, default_value_t = 0)] // 2480
     pub width: usize,
+    /// The max width of the left border to clear
+    #[arg(long, default_value_t = 0)]
+    pub left_border: usize,
+    /// The max width of the right border to clear
+    #[arg(long, default_value_t = 0)]
+    pub right_border: usize,
 }
 
 fn main() {
@@ -78,6 +84,13 @@ fn main() {
             }
             image_black.set_pixels(object)
         }
+    }
+
+    if args.left_border > 0 {
+        image_black.clear_border_left(args.left_border);
+    }
+    if args.right_border > 0 {
+        image_black.clear_border_right(args.right_border);
     }
 
     if args.width > 0 {
