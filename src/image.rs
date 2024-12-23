@@ -266,16 +266,47 @@ impl Image {
     }
 
     pub fn horizontal_padding(&self, width: usize) -> Result<Image, Box<dyn Error>> {
-        let old_width = self.width();
-        let cutout = self.full_cutout().trimm_left().unwrap();
-        let trimmed_width = cutout.width();
-        let pixels_to_move = width / 2 + trimmed_width / 2 - old_width;
-        let mut result = Image::new_empty(width, self.height());
-        result.set_pixels(
-            cutout
-                .pixels(false, true)
-                .map(|pixel| pixel.addx(pixels_to_move)),
-        );
-        Ok(result)
+        let wo = self.width();
+        if let Some(cutout) = self.full_cutout().trimm_left() {
+            let lo = wo - cutout.width();
+            if let Some(cutout) = cutout.trimm_right() {
+                let co = cutout.width();
+                let pixels_to_move = ((width - co) / 2) as i32 - lo as i32;
+                let mut result = Image::new_empty(width, self.height());
+                if pixels_to_move > 0 {
+                    result.set_pixels(
+                        cutout
+                            .pixels(false, true)
+                            .map(|pixel| pixel.addx(pixels_to_move as usize)),
+                    );
+                } else {
+                    result.set_pixels(
+                        cutout
+                            .pixels(false, true)
+                            .map(|pixel| pixel.subx((pixels_to_move * -1) as usize)),
+                    );
+                }
+                return Ok(result);
+            }
+        }
+        Ok(Image::new_empty(width, self.height))
+    }
+
+    pub fn clear_border_left(&mut self, pixels: usize) {
+        let width = self.full_cutout().left_border(pixels).width();
+        for y in 0..self.height {
+            for x in 0..width {
+                self.set(x, y, false);
+            }
+        }
+    }
+
+    pub fn clear_border_right(&mut self, pixels: usize) {
+        let width = self.full_cutout().right_border(pixels).width();
+        for y in 0..self.height {
+            for x in (self.width - width)..self.width {
+                self.set(x, y, false);
+            }
+        }
     }
 }
